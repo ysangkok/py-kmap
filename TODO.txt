@@ -1,0 +1,2 @@
+* 3D cylinder k-map
+* auto-detect variables
