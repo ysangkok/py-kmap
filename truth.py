@@ -9,6 +9,7 @@ import json
 import re
 from fractions import Fraction
 import os
+from srcdot import source_to_graph
 
 #seval = lambda x: compile(ast.literal_eval(x))
 seval = lambda x: eval(x,{'__builtins__': {}})
@@ -128,11 +129,12 @@ def gencp(names=None, lang="python"):
 			else:
 				buf.append(names[j])
 			buf.append(use("and"))
+		if len(buf) == 0: return "True"
 		if buf[-1] == use("and"): del buf[-1]
 		return "(" + " ".join(buf) + ")"
 	return constructproduct
 
-def mapcode(x):
+def mapcode(x,cb):
 	orgx = x
 	x = re.sub(" xor "," ^ ",x)
 	x = re.sub("([A-z]+) nor ([A-z]+)","not (\\1 or \\2)",x)
@@ -140,18 +142,19 @@ def mapcode(x):
 	x = re.sub("\+"," or ",x)
 	x = re.sub("\|"," or ",x)
 	x = re.sub("!", " not ",x)
+	x = re.sub("-", " not ",x)
 	x = re.sub("\\\\"," not ",x)
 	x = re.sub("\*"," and ",x)
 	x = re.sub("&"," and ",x)
-	#if orgx != x:
-	#	yield "<div class='warning'>warning, changed fun!</div>"
+	if orgx != x:
+		cb("warning, changed fun!")
 	return x
 
-def cleancode(x):
+def cleancode(x,cb):
 	orgx = x
 	x = re.sub("[^0-9A-z _\^|&()]","",x)
-	#if orgx != x:
-	#	yield "<div class='warning'>removed illegal chars!</div>"
+	if orgx != x:
+		cb("removed illegal chars!")
 	return x
 
 cleannames = lambda x: re.sub("[\W\d]", "", x)
@@ -215,8 +218,15 @@ def servepage(formtarget, form):
 	counter = itertools.count()
 
 	if form["type"].value == "small":
-		funtext = "lambda {}: {}".format(",".join(names), cleancode(mapcode(form["funstr"].value)))
+		warningmsg = []
+		def cb(m):
+			warningmsg.append(m)
+		funbody = cleancode(mapcode(form["funstr"].value,cb),cb).strip()
+		funtext = "lambda {}: {}".format(",".join(names), funbody)
+		if len(warningmsg) > 0:
+			print("<div class='warning'>{}</div>".format(" ".join(warningmsg)))
 		yield "input: <pre>{}</pre>".format(funtext)
+		make_inline_svg(funbody)
 		g = seval(funtext)
 		yield from karnaugh(names, g, counter)
 	#def g(a,b,c,d): return a and (not b and not d or b and c and not d)
@@ -239,6 +249,17 @@ def servepage(formtarget, form):
 
 		for (verilogtext, funtext, fun) in funs:
 			yield from karnaugh(names, fun, counter)
+
+
+remove_xml_header = lambda x: re.sub("<\?xml.*\?>", "", x)
+remove_doctype = lambda x: re.sub("<!DOCTYPE [^>]+>", "", x, re.MULTILINE | re.IGNORECASE | re.DOTALL)
+make_inline_svg = lambda funbody: remove_doctype(
+	remove_xml_header(
+		source_to_graph(funbody)
+			.create(format="svg")
+			.decode("utf-8")
+	)
+)
 
 def karnaugh(names, g, counter):
 	(combi, ma) = get_bool_table(g,len(names))
@@ -267,7 +288,8 @@ def karnaugh(names, g, counter):
 		middle = ["<span class='minterm' onmouseover='hov({0},{2})' onmouseout='unhov({0},{2})'>{1}</span>".format(j,i,myjsonid) for (i,j) in li]
 		return "lambda " + ", ".join(names) + ": " + " or ".join(middle)
 
-	code = gencode(" or ".join(parts))
+	funbody = " or ".join(parts)
+	code = gencode(funbody)
 	htmlcode = genhtmlcode(parts)
 
 	yield "output:\n<pre>"
@@ -280,6 +302,10 @@ def karnaugh(names, g, counter):
 	funs = [seval(x) for x in funtexts]
 	yield from do_table(names,fun,*pair,groups=list(zip(funs,colors.gethsvs(),funtexts,itertools.count())))
 	
+	# schematic
+	yield make_inline_svg(funbody)
+
+	# check equivalence
 	res = pair[1]
 	for i in ma.keys():
 		if not i in res.keys():
