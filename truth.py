@@ -1,4 +1,5 @@
 #!/usr/bin/env python3.3
+import sys
 import cgitb
 import cgi
 import itertools
@@ -10,6 +11,7 @@ import re
 from fractions import Fraction
 import os
 from srcdot import source_to_graph
+from cgi import MiniFieldStorage
 
 #seval = lambda x: compile(ast.literal_eval(x))
 seval = lambda x: eval(x,{'__builtins__': {}})
@@ -67,7 +69,7 @@ def do_table(names, g, combi, ma, groups=[]):
 
 	nparam = len(names)
 	
-	yield "<table border=1>\n"
+	yield "<table style='float: right' border=1>\n"
 	yield "<tr>\n"
 	yield "<th>\n"
 	axis1 = ceil(Fraction(nparam , 2))
@@ -225,8 +227,10 @@ def servepage(formtarget, form):
 		funtext = "lambda {}: {}".format(",".join(names), funbody)
 		if len(warningmsg) > 0:
 			print("<div class='warning'>{}</div>".format(" ".join(warningmsg)))
+		yield "<div style='width:100%; column-count: 2; column-fill: auto'>"
+		yield "<div style='display: inline-block; width: 40%;'>"
 		yield "input: <pre>{}</pre>".format(funtext)
-		make_inline_svg(funbody)
+		yield make_inline_svg(funbody, counter)
 		g = seval(funtext)
 		yield from karnaugh(names, g, counter)
 	#def g(a,b,c,d): return a and (not b and not d or b and c and not d)
@@ -253,9 +257,9 @@ def servepage(formtarget, form):
 
 remove_xml_header = lambda x: re.sub("<\?xml.*\?>", "", x)
 remove_doctype = lambda x: re.sub("<!DOCTYPE [^>]+>", "", x, re.MULTILINE | re.IGNORECASE | re.DOTALL)
-make_inline_svg = lambda funbody: remove_doctype(
+make_inline_svg = lambda funbody, counter: remove_doctype(
 	remove_xml_header(
-		source_to_graph(funbody)
+		source_to_graph(funbody,counter)
 			.create(format="svg")
 			.decode("utf-8")
 	)
@@ -268,7 +272,6 @@ def karnaugh(names, g, counter):
 	myid = next(counter)
 	myclassname = "karnaugh{}".format(myid)
 	myjsonid = json.dumps("." + myclassname)
-	yield "<div class='{}'>\n".format(myclassname)
 
 	j = 0
 	l = []
@@ -292,6 +295,7 @@ def karnaugh(names, g, counter):
 	code = gencode(funbody)
 	htmlcode = genhtmlcode(parts)
 
+	yield "</div><div style='display: inline-block; width: 60%;'>"
 	yield "output:\n<pre>"
 	yield htmlcode
 	yield "</pre>\n"
@@ -300,10 +304,14 @@ def karnaugh(names, g, counter):
 
 	funtexts = [gencode(x) for x in parts]
 	funs = [seval(x) for x in funtexts]
+	yield "<div class='{}'>\n".format(myclassname)
 	yield from do_table(names,fun,*pair,groups=list(zip(funs,colors.gethsvs(),funtexts,itertools.count())))
+	yield "</div>"
 	
 	# schematic
-	yield make_inline_svg(funbody)
+	yield make_inline_svg(funbody, counter)
+
+	yield "</div></div>"
 
 	# check equivalence
 	res = pair[1]
@@ -317,11 +325,13 @@ def karnaugh(names, g, counter):
 			assert False
 
 	#assert res == ma
-	yield "</div>"
 
 if __name__ == "__main__":
 	cgitb.enable()
-	form = cgi.FieldStorage()
+	if len(sys.argv) > 1:
+		form = dict((d, MiniFieldStorage(d,i)) for (d,i) in json.loads(sys.argv[1]).items())
+	else:
+		form = cgi.FieldStorage()
 	print("Content-Type: text/html\n")
 	myprint = lambda x: print(x,end="")
 	#def myprint(x):

@@ -17,12 +17,12 @@ def repeated(f, lst):
 
 class Name(object):
   def __init__(self, g, name):
-    self.node = pydot.Node(id(self), label=name)
     self.name = name
     self.g = g
     self.manifested = False
-  def manifest(self):
+  def manifest(self, counter):
     if not self.manifested:
+      self.node = pydot.Node(id(self), label=self.name, id="name-node-{}".format(next(counter)))
       self.g.add_node(self.node)
       self.manifested = True
   def __repr__(self):
@@ -51,12 +51,12 @@ class LogicalFunction(object):
   def getops(self):
     return self.ops
 
-  def manifest(self):
+  def manifest(self, counter):
    if not self.manifested:
-    for o in self.ops: o.manifest()
-    self.node = pydot.Node(id(self), label=self.op)
+    for o in self.ops: o.manifest(counter)
+    self.node = pydot.Node(id(self), label=self.op, id="logifunc-node-{}".format(next(counter)))
     self.g.add_node(self.node)
-    for o in self.ops: self.g.add_edge(pydot.Edge(self.node, o.node))
+    for o in self.ops: self.g.add_edge(pydot.Edge(self.node, o.node, id="edge-{}".format(next(counter))))
     self.manifested = True
 
 def onlylists(elem):
@@ -81,7 +81,7 @@ def get_simplest(outer):
 				coun = coun + 1
 	return list(worker(outer,()))
 
-def source_to_graph(source):
+def source_to_graph(source, counter):
   def objectify(le, names):
     op = le[0]
     rest = le[1:]
@@ -117,7 +117,7 @@ def source_to_graph(source):
       sett = newset
     return newlispcol, sett
 
-  g = pydot.Dot()
+  g = pydot.Dot(id="graph-{}".format(next(counter)))
   g.set_type('digraph')
 
   lisp = listit(dump(ast.parse(source)))
@@ -126,7 +126,7 @@ def source_to_graph(source):
   #objectifier = lambda x: list(map(lambda y: deepest[i] if type(y) == list else objectify(y), x))
 
   if not isinstance(lisp, Iterable):
-    lisp.manifest()
+    lisp.manifest(counter)
     return g
 
   """ objectify deepest first """
@@ -145,7 +145,7 @@ def source_to_graph(source):
     
   (lisp, names) = objectify(lisp, names)
 
-  lisp.manifest()
+  lisp.manifest(counter)
 
   return g
 
