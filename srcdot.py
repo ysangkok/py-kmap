@@ -36,7 +36,10 @@ class LogicalFunction(object):
   def __repr__(self):
     return "{}({})".format(self.op, ", ".join([repr(i) for i in self.ops]))
   def __eq__(self, other):
-    return isinstance(other, LogicalFunction) and self.ops == other.ops and self.op == other.op
+    print(other)
+    ret = isinstance(other, LogicalFunction) and self.ops == other.ops and self.op == other.op
+    print(ret)
+    return ret
   def __hash__(self):
     return hash(self.op) ^ hash(tuple(self.ops))
 
@@ -88,7 +91,7 @@ def source_to_graph(source, counter):
     #if len(rest) == 1: rest = rest[0]
     found = None
     for i in names:
-      if isinstance(i, LogicalFunction) and i.op == op and i.getops() == rest:
+      if isinstance(i, LogicalFunction) and i.op == op[0] and i.getops() == rest:
         found = i
         break
     if found is None:
@@ -102,7 +105,8 @@ def source_to_graph(source, counter):
     if len(lisp) > 0 and lisp[0][0] == "Name":
       found = None
       for i in sett:
-        if i.name == lisp[1]:
+        print(i.name, lisp[1][0])
+        if i.name == lisp[1][0]:
           found = i
           break
       if found is None:
