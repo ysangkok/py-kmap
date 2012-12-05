@@ -17,7 +17,7 @@ def repeated(f, lst):
 
 class Name(object):
   def __init__(self, g, name):
-    self.name = name
+    self.name = name[0]
     self.g = g
     self.manifested = False
   def manifest(self, counter):
@@ -42,7 +42,7 @@ class LogicalFunction(object):
 
   def __init__(self, g, op, ops):
     #if len(ops) == 1: assert op == "Not"
-    self.op = op
+    self.op = op[0]
     self.g = g
     self.ops = ops
     for i in self.ops: assert isinstance(i, LogicalFunction) or isinstance(i, Name), self.ops
@@ -98,7 +98,8 @@ def source_to_graph(source, counter):
     return (found, names)
 
   def walktree(lisp, sett):
-    if len(lisp) > 0 and lisp[0] == "Name":
+    print(lisp)
+    if len(lisp) > 0 and lisp[0][0] == "Name":
       found = None
       for i in sett:
         if i.name == lisp[1]:
@@ -108,7 +109,7 @@ def source_to_graph(source, counter):
         name = Name(g, lisp[1])
         return (name, frozenset(list(sett)+[name]))
       return (found, sett)
-    if type(lisp) == str:
+    if type(lisp) == tuple:
       return (lisp, sett)
     newlispcol = []
     for i in lisp:
@@ -121,6 +122,7 @@ def source_to_graph(source, counter):
   g.set_type('digraph')
 
   lisp = listit(dump(ast.parse(source)))
+  print(lisp)
   (lisp, names) = walktree(lisp,frozenset()) # objectify names
 
   #objectifier = lambda x: list(map(lambda y: deepest[i] if type(y) == list else objectify(y), x))
@@ -164,7 +166,7 @@ def test():
   res = [x(org) for x in [repeated(operator.getitem, k) for k in get_simplest(org)]]
   assert [8,[9]] in res, res
 
-  g = source_to_graph("(a | a | a) & (a | a | a)")
+  g = source_to_graph("(a | a | a) & (a | a | a)", itertools.count())
 
   with NamedTemporaryFile(delete=False) as f:
     a = g.create(format='jpe')

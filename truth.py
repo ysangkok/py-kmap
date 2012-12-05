@@ -145,6 +145,7 @@ def mapcode(x,cb):
 	x = re.sub("\|"," or ",x)
 	x = re.sub("!", " not ",x)
 	x = re.sub("-", " not ",x)
+	x = re.sub("~", " not ",x)
 	x = re.sub("\\\\"," not ",x)
 	x = re.sub("\*"," and ",x)
 	x = re.sub("&"," and ",x)

@@ -34,7 +34,7 @@ def dump(node):
             clazz = node.__class__.__name__
             fields = dict([(a, _format(b)) for a, b in iter_fields(node)])
             if clazz == "UnaryOp":
-              yield from fields["op"]
+              yield from [(list(fields["op"])[0], node.col_offset)]
               yield fields["operand"]
             elif clazz == "Compare":
               variables = chain([fields["left"]], (list(x) for x in fields["comparators"]))
@@ -43,16 +43,19 @@ def dump(node):
               variables = map(flatten,zip(fields["ops"], variables))
               variables = reduce(lambda x, y: ["And", x, y], variables) # and-tree of 2-way-ands instead of giant and-gate
               yield from variables
+            elif clazz == "Num":
+              yield ("Name", node.col_offset) # TODO
+              yield list(fields["n"])[0]
             elif clazz == "Name":
-              yield clazz
+              yield (clazz, node.col_offset)
               li = list(fields["id"])
               yield li[0]
             elif clazz == "BoolOp":
-              yield from fields["op"]
+              yield from [(list(fields["op"])[0], node.col_offset)]
               yield from fields["values"]
               #yield from reduce(lambda x, y: [fields["op"], x, y], fields["values"])
             elif clazz == "BinOp":
-              yield from fields["op"]
+              yield from [(list(fields["op"])[0],node.col_offset)]
               yield fields["left"]
               yield fields["right"]
             elif clazz == "Module":
@@ -83,18 +86,22 @@ if __name__ == "__main__":
     return p.communicate(input=svg)[0].decode("UTF-8")
     return svg.decode("UTF-8")
   fun2 = lambda x: listit(dump(ast.parse(x)))
-  print(fun2("a and b and c"))
-  sys.exit()
-  print(json.dumps(list(map(fun, [
-  "a or b and c",
-  "abe or not (b and c)",
-  "a & b & c",
+  #print(fun2("a and b and c"))
+  #sys.exit()
+  for i in [
+  "not not a",
+  #"a and b  or  ((c  and  d) and 1)",
+  #"a and b  or  ((c  and  d) and 1.23)",
+  #"a or b and c",
+  #"abe or not (b and c)",
+  #"a & b & c",
   "a & ~b & c",
-  "a << c; -a", # -a discarded
-  "-a",
-  "a <= b < c == d",
-  "a ** d",
-  ])), indent=4))
+  #"a << c; -a", # -a discarded
+  #"-a",
+  #"a <= b < c == d",
+  #"a ** d",
+  #]: print(json.dumps(list(fun2(i))))
+  ]: print(list(fun2(i)))
   #print(listit([('hej','med'),('dig',)]))
 
 
