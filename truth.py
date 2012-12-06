@@ -1,4 +1,6 @@
 #!/usr/bin/env python3.3
+import shlex
+import time
 import sys
 import cgitb
 import cgi
@@ -298,7 +300,9 @@ def karnaugh(names, g, counter):
 		j += 1
 	
 	#print("calling qm: <pre>ones = {}</pre>".format(json.dumps(l)))
+	yield "<!-- calling qm -->"
 	res = [x.zfill(len(names)) for x in qm(ones=l)]
+	yield "<!-- qm finished -->"
 	#print("result: <pre>{}</pre>".format(json.dumps(res)))
 	
 	parts = list(map(gencp(names), res))
@@ -312,10 +316,8 @@ def karnaugh(names, g, counter):
 	code = gencode(funbody)
 	htmlcode = genhtmlcode(parts)
 
-	yield "</div><div class='pgblock' style='width: 60%;'>"
-	yield "output:\n<pre>"
-	yield htmlcode
-	yield "</pre>\n"
+	yield "</div><div class='pgblock' style='width: 60%;'>output:\n"
+	yield "<pre>{}</pre>\n".format(htmlcode)
 	fun = seval(code)
 	pair = get_bool_table(fun, len(names))
 
@@ -349,11 +351,19 @@ if __name__ == "__main__":
 	if len(sys.argv) > 1:
 		form = dict((d, MiniFieldStorage(d,i)) for (d,i) in json.loads(sys.argv[1]).items())
 	else:
+		if not "REMOTE_ADDR" in os.environ:
+			print(
+				"""Usage:
+	{} {}""".format(sys.argv[0], shlex.quote(json.dumps({"type":"small","names":"a,b,c,d","funstr":"a and b or not (c and d)"})))
+			)
+			sys.exit(1)
 		form = cgi.FieldStorage()
 	print("Content-Type: text/html\n")
+	starttime = time.time()
 	#myprint = lambda x: print(x,end="")
 	def myprint(x):
-		if not isinstance(x, str):
-			raise Exception(x)
+		if time.time() - starttime > 5: raise Exception("timed out!: computed this: " + x)
+		#if not isinstance(x, str):
+		#	raise Exception(x)
 		print(x, end="")
 	list(map(myprint, servepage(os.path.basename(__file__), form)))
