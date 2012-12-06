@@ -69,7 +69,7 @@ def do_table(names, g, combi, ma, groups=[]):
 
 	nparam = len(names)
 	
-	yield "<table style='float: right' border=1>\n"
+	yield "<table border=1>\n"
 	yield "<tr>\n"
 	yield "<th>\n"
 	axis1 = ceil(Fraction(nparam , 2))
@@ -162,9 +162,25 @@ def cleancode(x,cb):
 
 cleannames = lambda x: re.sub("[\W\d]", "", x)
 
+def gencols(code):
+	return "".join(["<span class='col{} col'>{}</span>".format(x,y) for x,y in zip(itertools.count(),code)])
+
 def servepage(formtarget, form):
 	yield "<!doctype html><head><script src='//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js'></script><script>"
 	yield """
+	function setuplistener(lotuples, myclassname) {
+		Object.keys(lotuples).forEach(function(w) {
+			var i = lotuples[w];
+			i.forEach(function(colno) {
+				var sel = "." + myclassname + " .col" + colno;
+				$("#" + w).on("mouseover",function(e){
+					$(sel).css("text-decoration",(true  ? "underline" : "normal"));
+				}).on("mouseout", function(e) {
+					$(sel).css("text-decoration",(false ? "underline" : "none"));
+				});
+			});
+		});
+	}
 	function app(partid,kmapclass,bol) {
 		var selector = kmapclass + " " + ".part" + partid;
 		$(selector).css('font-weight',(bol ? 'bold' : 'normal'));
@@ -176,7 +192,7 @@ def servepage(formtarget, form):
 		return app(partid,kmapclass,false);
 	}
 	"""
-	yield "</script><style>.warning { color: red } .minterm:hover { background-color: yellow; } td, th { padding: 5px; }</style><title>Karnaugh Map</title></head><body>"
+	yield "</script><style>#colcontainer { column-count: 1; } .pgblock { display: block; } .col { } .warning { color: red } .minterm:hover { background-color: yellow; } td, th { padding: 5px; }</style><title>Karnaugh Map</title></head><body>"
 	
 	formnames = form["names"].value if "names" in form else "a,b,c,d"
 	formfunstr = form["funstr"].value if "funstr" in form else "a and (not b and not d or b and c and not d)"
@@ -225,13 +241,15 @@ def servepage(formtarget, form):
 		def cb(m):
 			warningmsg.append(m)
 		funbody = cleancode(mapcode(form["funstr"].value,cb),cb).strip()
-		funtext = "lambda {}: {}".format(",".join(names), funbody)
+		funhead = "lambda {}: ".format(",".join(names))
+		funtext = "{}{}".format(funhead, funbody)
 		if len(warningmsg) > 0:
 			print("<div class='warning'>{}</div>".format(" ".join(warningmsg)))
-		yield "<div style='width:100%; column-count: 2; column-fill: auto'>"
-		yield "<div style='display: inline-block; width: 40%;'>"
-		yield "input: <pre>{}</pre>".format(funtext)
-		yield make_inline_svg(funbody, counter)
+		yield "<div id='colcontainer'>"
+		yield "<div class='pgblock' style='width: 40%;'>"
+		myclassname = "inputfun{}".format(next(counter))
+		yield "input: <div class='{}'><pre>{}</pre></div>".format(myclassname, funhead + gencols(funbody))
+		yield make_inline_svg(funbody, counter, myclassname)
 		g = seval(funtext)
 		yield from karnaugh(names, g, counter)
 	#def g(a,b,c,d): return a and (not b and not d or b and c and not d)
@@ -258,13 +276,11 @@ def servepage(formtarget, form):
 
 remove_xml_header = lambda x: re.sub("<\?xml.*\?>", "", x)
 remove_doctype = lambda x: re.sub("<!DOCTYPE [^>]+>", "", x, re.MULTILINE | re.IGNORECASE | re.DOTALL)
-make_inline_svg = lambda funbody, counter: remove_doctype(
-	remove_xml_header(
-		source_to_graph(funbody,counter)
-			.create(format="svg")
-			.decode("utf-8")
-	)
-)
+def make_inline_svg(funbody, counter, myclassname):
+	g, idcoloffset = source_to_graph(funbody,counter)
+	svg = g.create(format="svg").decode("utf-8")
+	script = """<script>setuplistener({},{});</script>""".format(json.dumps(dict([(x, list(y)) for x,y in idcoloffset.items()])), json.dumps(myclassname))
+	return remove_doctype(remove_xml_header(svg)) + script
 
 def karnaugh(names, g, counter):
 	(combi, ma) = get_bool_table(g,len(names))
@@ -288,7 +304,7 @@ def karnaugh(names, g, counter):
 	parts = list(map(gencp(names), res))
 	gencode = lambda ps: "lambda " + ", ".join(names) + ": " + ps
 	def genhtmlcode(ps):
-		li = list(zip(ps,itertools.count()))
+		li = zip(ps,itertools.count())
 		middle = ["<span class='minterm' onmouseover='hov({0},{2})' onmouseout='unhov({0},{2})'>{1}</span>".format(j,i,myjsonid) for (i,j) in li]
 		return "lambda " + ", ".join(names) + ": " + " or ".join(middle)
 
@@ -296,7 +312,7 @@ def karnaugh(names, g, counter):
 	code = gencode(funbody)
 	htmlcode = genhtmlcode(parts)
 
-	yield "</div><div style='display: inline-block; width: 60%;'>"
+	yield "</div><div class='pgblock' style='width: 60%;'>"
 	yield "output:\n<pre>"
 	yield htmlcode
 	yield "</pre>\n"
@@ -310,7 +326,7 @@ def karnaugh(names, g, counter):
 	yield "</div>"
 	
 	# schematic
-	yield make_inline_svg(funbody, counter)
+	yield make_inline_svg(funbody, counter, myclassname)
 
 	yield "</div></div>"
 
@@ -329,14 +345,15 @@ def karnaugh(names, g, counter):
 
 if __name__ == "__main__":
 	cgitb.enable()
+	sys.setrecursionlimit(40)
 	if len(sys.argv) > 1:
 		form = dict((d, MiniFieldStorage(d,i)) for (d,i) in json.loads(sys.argv[1]).items())
 	else:
 		form = cgi.FieldStorage()
 	print("Content-Type: text/html\n")
-	myprint = lambda x: print(x,end="")
-	#def myprint(x):
-	#	if not isinstance(x, str):
-	#		raise Exception(x)
-	#	print(x, end="")
+	#myprint = lambda x: print(x,end="")
+	def myprint(x):
+		if not isinstance(x, str):
+			raise Exception(x)
+		print(x, end="")
 	list(map(myprint, servepage(os.path.basename(__file__), form)))

@@ -6,7 +6,7 @@ import ast
 import sys
 import itertools
 import operator
-from collections import Iterable
+from collections import Iterable, defaultdict
 
 def repeated(f, lst):
     def rfun(p):
@@ -16,14 +16,18 @@ def repeated(f, lst):
     return rfun
 
 class Name(object):
-  def __init__(self, g, name):
-    self.name = name[0]
+  def __init__(self, g, name, colno):
+    assert type(colno) == int
+    self.name = name
+    self.colno = colno #name[1]
     self.g = g
     self.manifested = False
-  def manifest(self, counter):
+  def manifest(self, counter, idcoloffset):
     if not self.manifested:
-      self.node = pydot.Node(id(self), label=self.name, id="name-node-{}".format(next(counter)))
+      htmlid = "name-node-{}".format(next(counter))
+      self.node = pydot.Node(id(self), label=self.name, id=htmlid)
       self.g.add_node(self.node)
+      idcoloffset[htmlid].add(self.colno)
       self.manifested = True
   def __repr__(self):
     return self.__class__.__name__ + "(" + self.name + ")"
@@ -36,9 +40,7 @@ class LogicalFunction(object):
   def __repr__(self):
     return "{}({})".format(self.op, ", ".join([repr(i) for i in self.ops]))
   def __eq__(self, other):
-    print(other)
     ret = isinstance(other, LogicalFunction) and self.ops == other.ops and self.op == other.op
-    print(ret)
     return ret
   def __hash__(self):
     return hash(self.op) ^ hash(tuple(self.ops))
@@ -46,6 +48,8 @@ class LogicalFunction(object):
   def __init__(self, g, op, ops):
     #if len(ops) == 1: assert op == "Not"
     self.op = op[0]
+    self.colno = op[1]
+    assert type(self.colno) == int
     self.g = g
     self.ops = ops
     for i in self.ops: assert isinstance(i, LogicalFunction) or isinstance(i, Name), self.ops
@@ -54,10 +58,12 @@ class LogicalFunction(object):
   def getops(self):
     return self.ops
 
-  def manifest(self, counter):
+  def manifest(self, counter, idcoloffset):
    if not self.manifested:
-    for o in self.ops: o.manifest(counter)
-    self.node = pydot.Node(id(self), label=self.op, id="logifunc-node-{}".format(next(counter)))
+    for o in self.ops: o.manifest(counter, idcoloffset)
+    htmlid = "logifunc-node-{}".format(next(counter))
+    idcoloffset[htmlid].add(self.colno)
+    self.node = pydot.Node(id(self), label=self.op, id=htmlid)
     self.g.add_node(self.node)
     for o in self.ops: self.g.add_edge(pydot.Edge(self.node, o.node, id="edge-{}".format(next(counter))))
     self.manifested = True
@@ -101,16 +107,14 @@ def source_to_graph(source, counter):
     return (found, names)
 
   def walktree(lisp, sett):
-    print(lisp)
     if len(lisp) > 0 and lisp[0][0] == "Name":
       found = None
       for i in sett:
-        print(i.name, lisp[1][0])
-        if i.name == lisp[1][0]:
+        if i.name == lisp[1]:
           found = i
           break
       if found is None:
-        name = Name(g, lisp[1])
+        name = Name(g, lisp[1], lisp[0][1])
         return (name, frozenset(list(sett)+[name]))
       return (found, sett)
     if type(lisp) == tuple:
@@ -126,14 +130,15 @@ def source_to_graph(source, counter):
   g.set_type('digraph')
 
   lisp = listit(dump(ast.parse(source)))
-  print(lisp)
   (lisp, names) = walktree(lisp,frozenset()) # objectify names
 
   #objectifier = lambda x: list(map(lambda y: deepest[i] if type(y) == list else objectify(y), x))
 
+  idcoloffset = defaultdict(set)
+
   if not isinstance(lisp, Iterable):
-    lisp.manifest(counter)
-    return g
+    lisp.manifest(counter, idcoloffset)
+    return g, idcoloffset
 
   """ objectify deepest first """
   while True:
@@ -151,9 +156,9 @@ def source_to_graph(source, counter):
     
   (lisp, names) = objectify(lisp, names)
 
-  lisp.manifest(counter)
+  lisp.manifest(counter, idcoloffset)
 
-  return g
+  return g, idcoloffset
 
 def test():
   sys.setrecursionlimit(40)
@@ -170,7 +175,7 @@ def test():
   res = [x(org) for x in [repeated(operator.getitem, k) for k in get_simplest(org)]]
   assert [8,[9]] in res, res
 
-  g = source_to_graph("(a | a | a) & (a | a | a)", itertools.count())
+  g, idcoloffset = source_to_graph("(abe | abe | abe) & (abe | abe | abe)", itertools.count())
 
   with NamedTemporaryFile(delete=False) as f:
     a = g.create(format='jpe')
