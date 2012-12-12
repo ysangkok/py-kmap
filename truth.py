@@ -277,7 +277,7 @@ def servepage(formtarget, form):
 		funhead = "lambda {}: ".format(",".join(names))
 		funtext = "{}{}".format(funhead, funbody)
 		if len(warningmsg) > 0:
-			print("<div class='warning'>{}</div>".format(" ".join(warningmsg)))
+			yield "<div class='warning'>{}</div>".format(" ".join(warningmsg))
 		yield "<div id='colcontainer'>"
 		yield "<div class='pgblock' style='width: 40%;'>"
 		myclassname = "inputfun{}".format(next(counter))
