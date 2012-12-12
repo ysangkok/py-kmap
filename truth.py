@@ -5,8 +5,7 @@ import sys
 import cgitb
 import cgi
 import itertools
-from math import ceil
-from qm import qm
+from math import ceil, log2
 import colors
 import json
 import re
@@ -14,6 +13,38 @@ from fractions import Fraction
 import os
 from srcdot import source_to_graph
 from cgi import MiniFieldStorage
+
+if False:
+  from qm import qm
+else:
+  def t(x,n):
+    x = x[1]
+    if x == '1':
+      return ['X'*n]
+    if x == '0':
+      return ['X'*n]
+  
+    result = []
+    for a,b in x:
+      tmp = []
+      for i in range(n):
+        if a & 1:
+          tmp.append('1')
+        elif b & 1:
+          tmp.append('X')
+        else:
+          tmp.append('0')
+        a >>= 1
+        b >>= 1
+      tmp.reverse()
+      result.append(''.join(tmp))
+    return result
+
+  from newqm import QM
+  def qm(**kwargs):
+    n = ceil(log2(max(kwargs["ones"])))
+    q = QM([chr(code) for code in range(ord('A'),ord('A')+n)])
+    return t(q.solve(kwargs["ones"],[]),n)
 
 #seval = lambda x: compile(ast.literal_eval(x))
 seval = lambda x: eval(x,{'__builtins__': {}})
@@ -301,8 +332,10 @@ def karnaugh(names, g, counter):
 	
 	#print("calling qm: <pre>ones = {}</pre>".format(json.dumps(l)))
 	yield "<!-- calling qm -->"
+	starttime = time.time()
 	res = [x.zfill(len(names)) for x in qm(ones=l)]
-	yield "<!-- qm finished -->"
+	endtime = time.time()
+	yield "<!-- qm finished: {} -->".format(endtime-starttime)
 	#print("result: <pre>{}</pre>".format(json.dumps(res)))
 	
 	parts = list(map(gencp(names), res))
@@ -347,7 +380,7 @@ def karnaugh(names, g, counter):
 
 if __name__ == "__main__":
 	cgitb.enable()
-	sys.setrecursionlimit(40)
+	#sys.setrecursionlimit(40)
 	if len(sys.argv) > 1:
 		form = dict((d, MiniFieldStorage(d,i)) for (d,i) in json.loads(sys.argv[1]).items())
 	else:
@@ -362,7 +395,7 @@ if __name__ == "__main__":
 	starttime = time.time()
 	#myprint = lambda x: print(x,end="")
 	def myprint(x):
-		if time.time() - starttime > 5: raise Exception("timed out!: computed this: " + x)
+		#if time.time() - starttime > 5: raise Exception("timed out!: computed this: " + x)
 		#if not isinstance(x, str):
 		#	raise Exception(x)
 		print(x, end="")

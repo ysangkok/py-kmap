@@ -8,7 +8,13 @@ import collections
 
 F = Fraction
 flatten = itertools.chain.from_iterable
-iterable = lambda x: isinstance(x, collections.Iterable)
+
+def zenos_dichotomy():
+	"""
+	http://en.wikipedia.org/wiki/1/2_%2B_1/4_%2B_1/8_%2B_1/16_%2B_%C2%B7_%C2%B7_%C2%B7
+	"""
+	for k in itertools.count():
+		yield F(1,2**k)
 
 def genfracs():
   """
@@ -16,16 +22,16 @@ def genfracs():
   [0.0, 0.5, 0.25, 0.75, 0.125, 0.375, 0.625, 0.875, 0.0625, 0.1875, ...]
   """
   yield 0
-  for k in itertools.count():
-    i = 2**k # [1,2,4,8,16,...]
+  for k in zenos_dichotomy():
+    i = k.denominator # [1,2,4,8,16,...]
     for j in range(1,i,2):
       yield F(j,i)
 
 bias = lambda x: (math.sqrt(x/3)/F(2,3)+F(1,3))/F(6,5) # can be used for the v in hsv to map linear values 0..1 to something that looks equidistant
 
 def genhsv(h): 
-	for s in [F(6,10)]: # could use range too
-		for v in [F(8,10),F(5,10)]: # optionally use range
+	for s in [F(6,10)]: # optionally use range
+		for v in [F(8,10),F(5,10)]: # could use range too
 			yield (h, s, v) # use bias for v here if you use range
 def genrgb(x):
 	for z in x: assert 0<=z<1
@@ -56,6 +62,17 @@ def reorder(hsvs):
 	"""
 	return (intersperse(x) for x in chunks(hsvs,8))
 
+def gethsvtuples():
+	return map(genhsv,genfracs())
+
+def gethsvs():
+	return flatten(reorder(gethsvtuples()))
+
+def getrgbs():
+	return map(genrgb, gethsvs())
+
+iterable = lambda x: isinstance(x, collections.Iterable)
+
 def recursiveflatten(x):
         return [a for i in x for a in recursiveflatten(i)] if iterable(x) else [x]
 
@@ -65,15 +82,6 @@ def test_reorder():
   new = list(map(list,reorder(org)))
   print(new)
   assert len(set(recursiveflatten(new))) == len(recursiveflatten(new))
-
-def gethsvtuples():
-	return map(genhsv,genfracs())
-
-def gethsvs():
-	return flatten(reorder(gethsvtuples()))
-
-def getrgbs():
-	return map(genrgb, gethsvs())
 
 def listit(js=True):
 	def tmp(t):
