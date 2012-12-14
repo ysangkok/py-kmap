@@ -1,4 +1,6 @@
 #!/usr/bin/env python3.3
+import ast
+import _ast
 import shlex
 import time
 import sys
@@ -11,8 +13,10 @@ import json
 import re
 from fractions import Fraction
 import os
-from srcdot import source_to_graph
+from srcdot import ast_to_graph
 from cgi import MiniFieldStorage
+from io import StringIO
+from unparse import Unparser
 
 if False:
   from qm import qm
@@ -119,8 +123,8 @@ def do_table(names, g, combi, ma, groups=[]):
 		for j in range(pow(2,axis1)):
 			binstr = bin((gray(j) << axis2) | gray(i))[2:].zfill(nparam)
 			bt = binstr_to_booltuple(binstr)
-			cs = 			[color			for (fun,color,funtext,idx) in groups if fun(*bt)]
-			classes = " ".join(	["part{}".format(idx)	for (fun,color,funtext,idx) in groups if fun(*bt)])
+			cs = 			[color			for (fun,color,idx) in groups if fun(*bt)]
+			classes = " ".join(	["part{}".format(idx)	for (fun,color,idx) in groups if fun(*bt)])
 			if len(cs) > 0:
 				yield "<td class='{}' style='".format(classes)
 				yield "background-color: rgb({},{},{});".format(*htmlrange(colors.genrgb(avg(cs))))
@@ -171,32 +175,56 @@ def gencp(names=None, lang="python"):
 
 def mapcode(x,cb):
 	orgx = x
-	x = re.sub(" xor "," ^ ",x)
-	x = re.sub("([A-z]+) nor ([A-z]+)","not (\\1 or \\2)",x)
-	x = re.sub("([A-z]+) nand ([A-z]+)","not (\\1 and \\2)",x)
-	x = re.sub("\+"," or ",x)
-	x = re.sub("\|"," or ",x)
-	x = re.sub("!", " not ",x)
-	x = re.sub("-", " not ",x)
-	x = re.sub("~", " not ",x)
-	x = re.sub("\\\\"," not ",x)
-	x = re.sub("\*"," and ",x)
-	x = re.sub("&"," and ",x)
+	x = re.sub(" xor ", " ^ ", x)
+	x = re.sub("([A-z]+) nor ([A-z]+)", "not (\\1 or \\2)", x)
+	x = re.sub("([A-z]+) nand ([A-z]+)", "not (\\1 and \\2)", x)
+	x = re.sub("\+", " or ", x)
+	x = re.sub("\|", " or ", x)
+	x = re.sub("!", " not ", x)
+	x = re.sub("-", " not ", x)
+	x = re.sub("~", " not ", x)
+	x = re.sub("\\\\", " not ", x)
+	x = re.sub("\*", " and ", x)
+	x = re.sub("&", " and ", x)
 	if orgx != x:
 		cb("warning, changed fun!")
 	return x
 
 def cleancode(x,cb):
 	orgx = x
-	x = re.sub("[^0-9A-z _\^|&()]","",x)
+	x = re.sub("[^0-9A-z _\^|&()]", "", x)
 	if orgx != x:
 		cb("removed illegal chars!")
 	return x
 
 cleannames = lambda x: re.sub("[\W\d]", "", x)
 
-def gencols(code):
-	return "".join(["<span class='col{} col'>{}</span>".format(x,y) for x,y in zip(itertools.count(),code)])
+def gencols(parts):
+	counter = itertools.count()
+	for i in range(len(parts)):
+		code = parts[i]
+		yield ["<span class='col{} col'>{}</span>".format(x,y) for x,y in zip(counter,code)]
+		for j in range(3): next(counter)
+		
+
+def extractminterms(funbody):
+	maybeBoolOp = ast.parse(funbody).body[0].value
+	if type(maybeBoolOp) != ast.BoolOp: return None
+	if maybeBoolOp.op.__class__.__name__ != "Or": return None
+	values = maybeBoolOp.values
+	
+	def getcode(i):
+		strio = StringIO()
+		Unparser(i, strio)
+		return strio.getvalue().strip()
+	return [getcode(i) for i in values]
+
+def mkgroups(orgfunparts,names):
+	if orgfunparts is not None:
+		groups = list(zip([seval("lambda {}: {}".format(", ".join(names),i)) for i in orgfunparts],colors.gethsvs(),itertools.count())) # TODO
+	else:
+		groups = []
+	return groups
 
 def servepage(formtarget, form):
 	yield "<!doctype html><head><script src='//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js'></script><script>"
@@ -274,24 +302,50 @@ def servepage(formtarget, form):
 		def cb(m):
 			warningmsg.append(m)
 		funbody = cleancode(mapcode(form["funstr"].value,cb),cb).strip()
-		funhead = "lambda {}: ".format(",".join(names))
+
+		funhead = "lambda {}: ".format(", ".join(names))
 		funtext = "{}{}".format(funhead, funbody)
 		if len(warningmsg) > 0:
 			yield "<div class='warning'>{}</div>".format(" ".join(warningmsg))
 		yield "<div id='colcontainer'>"
 		yield "<div class='pgblock' style='width: 40%;'>"
 		myclassname = "inputfun{}".format(next(counter))
-		yield "input: <div class='{}'><pre>{}</pre></div>".format(myclassname, funhead + gencols(funbody))
-		yield make_inline_svg(funbody, counter, myclassname)
+
 		g = seval(funtext)
-		yield from karnaugh(names, g, counter)
+
+		(combi, ma) = get_bool_table(g,len(names))
+		orgfunparts = extractminterms(funbody)
+		groups = mkgroups(orgfunparts,names)
+		inkmapid = "inkmap{}".format(next(counter))
+		if groups != []:
+			reconstructedfunbody = " or ".join(orgfunparts)
+			reconstructedfun = "lambda {}: {}".format(",".join(names), reconstructedfunbody)
+
+			temp = ["".join(x) for x in gencols(orgfunparts)]
+			temp = genhtmlcode(temp, json.dumps("." + inkmapid), names)
+			htmlfunbody = " or ".join(temp)
+		else:
+			htmlfunbody = funbody
+			reconstructedfunbody = funbody
+
+		yield "input: <div class='{}'><pre>{}</pre></div>".format(myclassname, funhead + htmlfunbody)
+
+		yield "<div class='{}'>".format(inkmapid)
+		yield from do_table(names, g, combi, ma, groups=groups)
+		yield "</div>"
+
+		yield make_inline_svg(ast.parse(reconstructedfunbody), counter, myclassname)
+
+
+		yield from karnaugh(names, g, counter, combi, ma)
 	#def g(a,b,c,d): return a and (not b and not d or b and c and not d)
 	else:
 
 		genfuntriple = lambda y, x: (y, x, seval(x))
 		inst1 = gencp(lang="verilog")
 		inst2 = gencp()
-		funs = [genfuntriple(inst1(x), "lambda *x: " + inst2(x)) for x in [x.strip() for x in form["userdata"].value.strip().split("\n")]]
+		prolog = "lambda *x: " 
+		funs = [genfuntriple(inst1(x), prolog + inst2(x)) for x in [x.strip() for x in form["userdata"].value.strip().split("\n")]]
 
 		"""[
 			"1011011111", # a
@@ -304,20 +358,21 @@ def servepage(formtarget, form):
 		]]"""
 
 		for (verilogtext, funtext, fun) in funs:
-			yield from karnaugh(names, fun, counter)
+			yield from karnaugh(names, fun, counter, *get_bool_table(fun,len(names))) #TODO
 
 
 remove_xml_header = lambda x: re.sub("<\?xml.*\?>", "", x)
 remove_doctype = lambda x: re.sub("<!DOCTYPE [^>]+>", "", x, re.MULTILINE | re.IGNORECASE | re.DOTALL)
-def make_inline_svg(funbody, counter, myclassname):
-	g, idcoloffset = source_to_graph(funbody,counter)
+def make_inline_svg(astfunbody, counter, myclassname):
+	g, idcoloffset = ast_to_graph(astfunbody,counter)
 	svg = g.create(format="svg").decode("utf-8")
 	script = """<script>setuplistener({},{});</script>""".format(json.dumps(dict([(x, list(y)) for x,y in idcoloffset.items()])), json.dumps(myclassname))
 	return remove_doctype(remove_xml_header(svg)) + script
 
-def karnaugh(names, g, counter):
-	(combi, ma) = get_bool_table(g,len(names))
-	#do_table(names, g, combi, ma)
+def genhtmlcode(ps, myjsonid, names):
+	return ["<span class='minterm' onmouseover='hov({0},{2})' onmouseout='unhov({0},{2})'>{1}</span>".format(j,i,myjsonid) for (i,j) in zip(ps,itertools.count())]
+
+def karnaugh(names, g, counter, combi, ma):
 	
 	myid = next(counter)
 	myclassname = "karnaugh{}".format(myid)
@@ -340,14 +395,11 @@ def karnaugh(names, g, counter):
 	
 	parts = list(map(gencp(names), res))
 	gencode = lambda ps: "lambda " + ", ".join(names) + ": " + ps
-	def genhtmlcode(ps):
-		li = zip(ps,itertools.count())
-		middle = ["<span class='minterm' onmouseover='hov({0},{2})' onmouseout='unhov({0},{2})'>{1}</span>".format(j,i,myjsonid) for (i,j) in li]
-		return "lambda " + ", ".join(names) + ": " + " or ".join(middle)
 
 	funbody = " or ".join(parts)
 	code = gencode(funbody)
-	htmlcode = genhtmlcode(parts)
+	htmlcode = genhtmlcode(parts, myjsonid, names)
+	htmlcode = "lambda " + ", ".join(names) + ": " + " or ".join(htmlcode)
 
 	yield "</div><div class='pgblock' style='width: 60%;'>output:\n"
 	yield "<pre>{}</pre>\n".format(htmlcode)
@@ -357,11 +409,11 @@ def karnaugh(names, g, counter):
 	funtexts = [gencode(x) for x in parts]
 	funs = [seval(x) for x in funtexts]
 	yield "<div class='{}'>\n".format(myclassname)
-	yield from do_table(names,fun,*pair,groups=list(zip(funs,colors.gethsvs(),funtexts,itertools.count())))
+	yield from do_table(names,fun,*pair,groups=list(zip(funs,colors.gethsvs(),itertools.count())))
 	yield "</div>"
 	
 	# schematic
-	yield make_inline_svg(funbody, counter, myclassname)
+	yield make_inline_svg(ast.parse(funbody), counter, myclassname)
 
 	yield "</div></div>"
 
@@ -376,7 +428,7 @@ def karnaugh(names, g, counter):
 			yield "got", res[i]
 			assert False
 
-	#assert res == ma
+	assert res == ma
 
 if __name__ == "__main__":
 	cgitb.enable()

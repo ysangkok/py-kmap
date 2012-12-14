@@ -1,8 +1,8 @@
 #!/usr/bin/env python3.3
 
+import ast
 import pydot
 from lispify import dump, listit, tupleit
-import ast
 import sys
 import itertools
 import operator
@@ -90,7 +90,7 @@ def get_simplest(outer):
 				coun = coun + 1
 	return list(worker(outer,()))
 
-def source_to_graph(source, counter):
+def ast_to_graph(myast, counter):
   def objectify(le, names):
     op = le[0]
     rest = le[1:]
@@ -129,7 +129,7 @@ def source_to_graph(source, counter):
   g = pydot.Dot(id="graph-{}".format(next(counter)))
   g.set_type('digraph')
 
-  lisp = listit(dump(ast.parse(source)))
+  lisp = listit(dump(myast))
   (lisp, names) = walktree(lisp,frozenset()) # objectify names
 
   #objectifier = lambda x: list(map(lambda y: deepest[i] if type(y) == list else objectify(y), x))
@@ -175,7 +175,7 @@ def test():
   res = [x(org) for x in [repeated(operator.getitem, k) for k in get_simplest(org)]]
   assert [8,[9]] in res, res
 
-  g, idcoloffset = source_to_graph("(abe | abe | abe) & (abe | abe | abe)", itertools.count())
+  g, idcoloffset = ast_to_graph(ast.parse("(abe | abe | abe) & (abe | abe | abe)"), itertools.count())
 
   with NamedTemporaryFile(delete=False) as f:
     a = g.create(format='jpe')
