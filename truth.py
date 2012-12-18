@@ -46,7 +46,8 @@ else:
 
   from newqm import QM
   def qm(**kwargs):
-    n = ceil(log2(max(kwargs["ones"])))
+    ma = max(kwargs["ones"])
+    n = ceil(log2(ma if ma > 0 else 1))
     q = QM([chr(code) for code in range(ord('A'),ord('A')+n)])
     return t(q.solve(kwargs["ones"],[]),n)
 
@@ -87,12 +88,12 @@ def ascii_table(names, combi):
 	
 	# ascii table
 	for i in names: yield i + "\t"
-	yield "F"
+	yield "F\n"
 	
 	
 	j = 0
 	for i in combi:
-		for k in i[0]: yield bts(k) + "\t\n"
+		for k in i[0]: yield bts(k) + "\t"
 		yield bts(i[1])
 		j+=1
 		if j==1:
@@ -102,7 +103,7 @@ def ascii_table(names, combi):
 	yield "</pre>"
 
 def do_table(names, g, combi, ma, groups=[]):
-	#ascii_table(names, combi)
+	yield from ascii_table(names, combi)
 
 	nparam = len(names)
 	
