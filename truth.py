@@ -103,7 +103,7 @@ def ascii_table(names, combi):
 	yield "</pre>"
 
 def do_table(names, g, combi, ma, groups=[]):
-	yield from ascii_table(names, combi)
+	#yield from ascii_table(names, combi)
 
 	nparam = len(names)
 	
@@ -177,8 +177,10 @@ def gencp(names=None, lang="python"):
 def mapcode(x,cb):
 	orgx = x
 	x = re.sub(" xor ", " ^ ", x)
-	x = re.sub("([A-z]+) nor ([A-z]+)", "not (\\1 or \\2)", x)
-	x = re.sub("([A-z]+) nand ([A-z]+)", "not (\\1 and \\2)", x)
+	x = re.sub("!=", " ^ ", x)
+	x = re.sub("([A-z]+) +nor +([A-z]+)", "not (\\1 or \\2)", x)
+	x = re.sub("([A-z]+) +== +([A-z]+)", "not (\\1 ^ \\2)", x)
+	x = re.sub("([A-z]+) +nand +([A-z]+)", "not (\\1 and \\2)", x)
 	x = re.sub("\+", " or ", x)
 	x = re.sub("\|", " or ", x)
 	x = re.sub("!", " not ", x)
