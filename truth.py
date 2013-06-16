@@ -18,38 +18,43 @@ from cgi import MiniFieldStorage
 from io import StringIO
 from unparse import Unparser
 
+def human(x,n):
+  x = x[1]
+  if x == '1':
+    return ['X'*n]
+  if x == '0':
+    return ['X'*n]
+
+  result = []
+  for a,b in x:
+    tmp = []
+    for i in range(n):
+      if a & 1:
+        tmp.append('1')
+      elif b & 1:
+        tmp.append('X')
+      else:
+        tmp.append('0')
+      a >>= 1
+      b >>= 1
+    tmp.reverse()
+    result.append(''.join(tmp))
+  return result
+
 if False:
-  from qm import qm
+  from qm import qm as real
+  def qm(**kwargs):
+    return real(ones=kwargs["ones"])
 else:
-  def t(x,n):
-    x = x[1]
-    if x == '1':
-      return ['X'*n]
-    if x == '0':
-      return ['X'*n]
-  
-    result = []
-    for a,b in x:
-      tmp = []
-      for i in range(n):
-        if a & 1:
-          tmp.append('1')
-        elif b & 1:
-          tmp.append('X')
-        else:
-          tmp.append('0')
-        a >>= 1
-        b >>= 1
-      tmp.reverse()
-      result.append(''.join(tmp))
-    return result
 
   from newqm import QM
   def qm(**kwargs):
     ma = max(kwargs["ones"])
-    n = ceil(log2(ma if ma > 0 else 1))
-    q = QM([chr(code) for code in range(ord('A'),ord('A')+n)])
-    return t(q.solve(kwargs["ones"],[]),n)
+    n = kwargs["lennames"]
+    chars = [chr(code) for code in range(ord('A'),ord('A')+n+1)]
+    q = QM(chars)
+    res = q.solve(kwargs["ones"],[])
+    return human(res,n)
 
 #seval = lambda x: compile(ast.literal_eval(x))
 seval = lambda x: eval(x,{'__builtins__': {}})
@@ -391,7 +396,7 @@ def karnaugh(names, g, counter, combi, ma):
 	#print("calling qm: <pre>ones = {}</pre>".format(json.dumps(l)))
 	yield "<!-- calling qm -->"
 	starttime = time.time()
-	res = [x.zfill(len(names)) for x in qm(ones=l)]
+	res = [x.zfill(len(names)) for x in qm(ones=l, lennames=len(names))]
 	endtime = time.time()
 	yield "<!-- qm finished: {} -->".format(endtime-starttime)
 	#print("result: <pre>{}</pre>".format(json.dumps(res)))
@@ -455,3 +460,5 @@ if __name__ == "__main__":
 		#	raise Exception(x)
 		print(x, end="")
 	list(map(myprint, servepage(os.path.basename(__file__), form)))
+
+#assert human(QM(["a","b"]).solve([1,2],[]),1) == ['10', '01']
