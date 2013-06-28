@@ -49,6 +49,7 @@ else:
 
   from newqm import QM
   def qm(**kwargs):
+    if len(kwargs["ones"]) == 0: return ""
     ma = max(kwargs["ones"])
     n = kwargs["lennames"]
     chars = [chr(code) for code in range(ord('A'),ord('A')+n+1)]
@@ -373,7 +374,7 @@ remove_xml_header = lambda x: re.sub("<\?xml.*\?>", "", x)
 remove_doctype = lambda x: re.sub("<!DOCTYPE [^>]+>", "", x, re.MULTILINE | re.IGNORECASE | re.DOTALL)
 def make_inline_svg(astfunbody, counter, myclassname):
 	g, idcoloffset = ast_to_graph(astfunbody,counter)
-	svg = g.create(format="svg").decode("utf-8")
+	svg = g.create(format="svg")
 	script = """<script>setuplistener({},{});</script>""".format(json.dumps(dict([(x, list(y)) for x,y in idcoloffset.items()])), json.dumps(myclassname))
 	return remove_doctype(remove_xml_header(svg)) + script
 
@@ -402,6 +403,7 @@ def karnaugh(names, g, counter, combi, ma):
 	#print("result: <pre>{}</pre>".format(json.dumps(res)))
 	
 	parts = list(map(gencp(names), res))
+	if len(parts) == 0: parts = ["False"]
 	gencode = lambda ps: "lambda " + ", ".join(names) + ": " + ps
 
 	funbody = " or ".join(parts)
