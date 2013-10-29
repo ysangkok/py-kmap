@@ -374,7 +374,7 @@ remove_xml_header = lambda x: re.sub("<\?xml.*\?>", "", x)
 remove_doctype = lambda x: re.sub("<!DOCTYPE [^>]+>", "", x, re.MULTILINE | re.IGNORECASE | re.DOTALL)
 def make_inline_svg(astfunbody, counter, myclassname):
 	g, idcoloffset = ast_to_graph(astfunbody,counter)
-	svg = g.create(format="svg")
+	svg = g.create(format="svg").decode("ascii")
 	script = """<script>setuplistener({},{});</script>""".format(json.dumps(dict([(x, list(y)) for x,y in idcoloffset.items()])), json.dumps(myclassname))
 	return remove_doctype(remove_xml_header(svg)) + script
 
