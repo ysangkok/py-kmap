@@ -1,7 +1,7 @@
 #!/usr/bin/env python3.3
 
 import ast
-import pydot
+import pydotplus as pydot
 from lispify import dump, listit, tupleit
 import sys
 import itertools
@@ -69,26 +69,26 @@ class LogicalFunction(object):
     self.manifested = True
 
 def onlylists(elem):
-	return type(elem) == list
+    return type(elem) == list
 
 def is_ok(lst):
-	""" lst contains only lists of simple elements """
-	if type(lst) != list: return False
-	listsinme = list(filter(onlylists, lst))
-	if len(listsinme) == 0: return False
-	elemsofsublists = itertools.chain.from_iterable(map(lambda x: filter(onlylists, x), listsinme))
-	onlyhassimple = all(map(lambda x: type(x) != list, elemsofsublists))
-	return onlyhassimple
+    """ lst contains only lists of simple elements """
+    if type(lst) != list: return False
+    listsinme = list(filter(onlylists, lst))
+    if len(listsinme) == 0: return False
+    elemsofsublists = itertools.chain.from_iterable(map(lambda x: filter(onlylists, x), listsinme))
+    onlyhassimple = all(map(lambda x: type(x) != list, elemsofsublists))
+    return onlyhassimple
 
 def get_simplest(outer):
-	def worker(lst,sofar):
-		if is_ok(lst): yield sofar
-		if type(lst) == list:
-			coun = 0
-			for i in lst:
-				yield from worker(i,tuple(list(sofar)+[coun]))
-				coun = coun + 1
-	return list(worker(outer,()))
+    def worker(lst,sofar):
+        if is_ok(lst): yield sofar
+        if type(lst) == list:
+            coun = 0
+            for i in lst:
+                yield from worker(i,tuple(list(sofar)+[coun]))
+                coun = coun + 1
+    return list(worker(outer,()))
 
 def ast_to_graph(myast, counter):
   def objectify(le, names):

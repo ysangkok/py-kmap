@@ -24,8 +24,8 @@ def tupleit(t):
 flatten = itertools.chain.from_iterable
 
 def duplicate_elements_except_last_and_first(variables):
-	variables = list(variables)
-	return chain([variables[0]], flatten([x,x] for x in variables[1:len(variables)-1]), [variables[-1]])
+    variables = list(variables)
+    return chain([variables[0]], flatten([x,x] for x in variables[1:len(variables)-1]), [variables[-1]])
 
 def dump(node):
     def _format(node):
